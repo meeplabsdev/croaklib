@@ -1,15 +1,15 @@
 modLoader = "javafml"
 loaderVersion = "[47,)"
 #issueTrackerURL = ""
-license = "Insert License Here"
+license = ""
 
 [[mods]]
 modId = "croaklib"
 version = "${version}"
 displayName = "CroakLib"
-authors = "Me!"
+authors = "CroakAndRoll"
 description = '''
-This is an example description! Tell everyone what your mod is about!
+Library mod for my common code.
 '''
 #logoFile = ""
 
