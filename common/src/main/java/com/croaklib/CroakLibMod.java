@@ -6,7 +6,6 @@ import dev.architectury.platform.Platform;
 import dev.architectury.utils.Env;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import java.net.http.HttpClient;
 
 public final class CroakLibMod {
@@ -19,12 +18,5 @@ public final class CroakLibMod {
         if (Platform.getEnv() == Env.CLIENT.toPlatform()) {
             CroakLibModClient.init();
         }
-
-        LOGGER.info(
-          "v{}:v{} ({})",
-          ModUpdater.currentModVersion(),
-          ModUpdater.latestGithubVersion("meeplabsdev", MOD_ID),
-          Platform.isFabric() ? "fabric": "forge"
-        );
     }
 }

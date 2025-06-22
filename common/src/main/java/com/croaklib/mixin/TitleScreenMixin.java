@@ -26,9 +26,7 @@ public class TitleScreenMixin extends Screen {
 
 	@Inject(method="init", at=@At("TAIL"))
 	private void init(CallbackInfo ci) {
-		if (ModUpdater.shouldUpdate()) {
-			ModUpdater.update();
-		}
+		ModUpdater.update();
 	}
 
 	@Inject(method = "render", at = @At("TAIL"))

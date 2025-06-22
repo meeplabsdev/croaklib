@@ -27,13 +27,15 @@ public class UpdateFinishedScreen extends Screen {
 
 		this.addRenderableWidget(Button.builder(
 			Component.literal("Restart Now"),
-			button -> this.minecraft.close()
-		).bounds(startX, buttonY, buttonWidth, buttonHeight).build());
+			button -> {
+				if (this.minecraft != null) this.minecraft.close();
+			}).bounds(startX, buttonY, buttonWidth, buttonHeight).build());
 
 		this.addRenderableWidget(Button.builder(
 			Component.literal("Restart Later"),
-			button -> this.minecraft.setScreen(new TitleScreen())
-		).bounds(startX + buttonWidth + buttonSpacing, buttonY, buttonWidth, buttonHeight).build());
+			button -> {
+				if (this.minecraft != null) this.minecraft.setScreen(new TitleScreen());
+			}).bounds(startX + buttonWidth + buttonSpacing, buttonY, buttonWidth, buttonHeight).build());
 	}
 
 	@Override

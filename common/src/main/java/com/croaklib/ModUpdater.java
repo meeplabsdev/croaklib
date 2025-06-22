@@ -6,12 +6,14 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.architectury.platform.Platform;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.TitleScreen;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
+import java.net.URLConnection;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,125 +23,235 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 public class ModUpdater {
+	private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
+	private static final String GITHUB_ACCEPT_HEADER = "application/vnd.github.v3+json";
+	private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
+	private static final int BUFFER_SIZE = 8192;
+
+	private static final List<Updatable> updatables = new ArrayList<>();
+	public static class Updatable {
+		private String branch;
+		private final String modid;
+		private final String user;
+		private final String repo;
+
+		public Updatable(String user, String repo, String modid) {
+			this.branch = Platform.getMinecraftVersion();
+			this.modid = modid;
+			this.user = user;
+			this.repo = repo;
+
+			String url = GITHUB_API_BASE + user + "/" + repo + "/branches/" + branch;
+			HttpRequest request = HttpRequest.newBuilder()
+				.uri(URI.create(url))
+				.header("Accept", GITHUB_ACCEPT_HEADER)
+				.timeout(REQUEST_TIMEOUT)
+				.GET()
+				.build();
+
+			try {
+				HttpResponse<String> response = CroakLibMod.HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+				if (response.statusCode() != 200) this.branch = "main";
+			} catch (IOException | InterruptedException e) {
+				this.branch = "main";
+			}
+		}
+	}
+
+	public static void addMod(String user, String repo, String modid) {
+		updatables.add(new Updatable(repo, user, modid));
+	}
+
 	public static int v(String version) {
-		if (version.startsWith("v")) {
-			version = version.substring(1);
+		if (version == null || version.isEmpty()) {
+			return Integer.MAX_VALUE;
 		}
 
-		String[] parts = version.split("\\.");
-		if (parts.length != 3) return Integer.MAX_VALUE;
+		String cleanVersion = version.startsWith("v") ? version.substring(1) : version;
+		String[] parts = cleanVersion.split("\\.");
 
-		int major = Integer.parseInt(parts[0]);
-		int minor = Integer.parseInt(parts[1]);
-		int patch = Integer.parseInt(parts[2]);
+		if (parts.length != 3) {
+			return Integer.MAX_VALUE;
+		}
 
-		return (major << 16 | minor << 8 | patch);
+		try {
+			int major = Integer.parseInt(parts[0]);
+			int minor = Integer.parseInt(parts[1]);
+			int patch = Integer.parseInt(parts[2]);
+			return (major << 16) | (minor << 8) | patch;
+		} catch (NumberFormatException e) {
+			return Integer.MAX_VALUE;
+		}
 	}
 
-	public static int currentModVersion() {
-		return v(Platform.getMod(CroakLibMod.MOD_ID).getVersion());
+	public static int getCurrentModVersion(Updatable u) {
+		return v(Platform.getMod(u.modid).getVersion());
 	}
 
-	public static int latestGithubVersion(String user, String repo) {
+	public static JsonObject getLatestGithubRelease(Updatable u) throws IOException {
+		String url = GITHUB_API_BASE + u.user + "/" + u.repo + "/releases";
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.github.com/repos/" + user + "/" + repo + "/releases/latest"))
-			.header("Accept", "application/vnd.github.v3+json")
-			.timeout(Duration.ofSeconds(10))
-			.GET().build();
+			.uri(URI.create(url))
+			.header("Accept", GITHUB_ACCEPT_HEADER)
+			.timeout(REQUEST_TIMEOUT)
+			.GET()
+			.build();
 
 		try {
 			HttpResponse<String> response = CroakLibMod.HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-			if (response.statusCode() == 200) {
-				JsonObject data = CroakLibMod.GSON.fromJson(response.body(), JsonObject.class);
-				if (data.has("tag_name")) return v(data.get("tag_name").getAsString());
+
+			if (response.statusCode() != 200) {
+				throw new IOException("GitHub API returned status code: " + response.statusCode());
 			}
-		} catch (IOException | InterruptedException ignored) {}
 
-		return 0;
-	}
+			JsonArray releases = CroakLibMod.GSON.fromJson(response.body(), JsonArray.class);
 
-	public static URI latestGithubAsset(String user, String repo) throws FileNotFoundException {
-		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://api.github.com/repos/" + user + "/" + repo + "/releases/latest"))
-			.header("Accept", "application/vnd.github.v3+json")
-			.timeout(Duration.ofSeconds(10))
-			.GET().build();
-
-		try {
-			HttpResponse<String> response = CroakLibMod.HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-			if (response.statusCode() == 200) {
-				JsonObject data = CroakLibMod.GSON.fromJson(response.body(), JsonObject.class);
-				if (data.has("assets") && data.has("tag_name")) {
-					JsonArray assets = data.getAsJsonArray("assets");
-					String version = data.get("tag_name").getAsString();
-
-					for (JsonElement asset : assets) {
-						String name = asset.getAsJsonObject().get("name").getAsString();
-						if (!name.equals(vModFilename(version))) continue;
-						return URI.create(asset.getAsJsonObject().get("browser_download_url").getAsString());
-					}
+			for (JsonElement release : releases) {
+				JsonObject data = release.getAsJsonObject();
+				if (data.has("target_commitish") &&
+					data.get("target_commitish").getAsString().equals(u.branch) &&
+					data.has("assets") &&
+					data.has("tag_name")) {
+					return data;
 				}
 			}
-		} catch (IOException | InterruptedException ignored) {}
 
-		throw new FileNotFoundException("Could not find asset for release on this platform or version.");
-	}
+			throw new IOException("No valid release found for branch: " + u.branch);
 
-	public static String vModFilename(String version) {
-		if (!Platform.isFabric() && !Platform.isForge()) throw new UnknownError("Platform is unrecognised.");
-
-		if (version.startsWith("v")) {
-			version = version.substring(1);
-		}
-
-		return String.format(
-			"%s-%s-%s.jar",
-			CroakLibMod.MOD_ID,
-			Platform.isFabric() ? "fabric" : "forge",
-			version
-		);
-	}
-
-	public static String currentModFilename() {
-		return vModFilename(Platform.getMod(CroakLibMod.MOD_ID).getVersion());
-	}
-
-	public static boolean shouldUpdate() {
-		return currentModVersion() < latestGithubVersion("meeplabsdev", CroakLibMod.MOD_ID);
-//		return true;
-	}
-
-	public static UpdateScreen showUpdateScreen() {
-		UpdateScreen updateScreen = new UpdateScreen();
-		Minecraft.getInstance().setScreen(updateScreen);
-		return updateScreen;
-	}
-
-	private static boolean updating = false;
-	public static void update() {
-		if (!updating) {
-			updating = true;
-			UpdateScreen updateScreen = showUpdateScreen();
-			updateScreen.setProgress(1);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new IOException("Request interrupted", e);
 		}
 	}
 
-	public static boolean supportsVersion(Path jarFile, String mcVersion) {
+	public static int getLatestGithubVersion(Updatable u) throws IOException {
+		JsonObject release = getLatestGithubRelease(u);
+		return v(release.get("tag_name").getAsString());
+	}
+
+	public static URI getLatestGithubAsset(Updatable u) throws IOException {
+		JsonObject release = getLatestGithubRelease(u);
+		JsonArray assets = release.getAsJsonArray("assets");
+		String version = release.get("tag_name").getAsString();
+		String expectedFilename = generateModFilename(u, version);
+
+		for (JsonElement asset : assets) {
+			JsonObject assetObj = asset.getAsJsonObject();
+			String name = assetObj.get("name").getAsString();
+
+			if (expectedFilename.equals(name)) {
+				return URI.create(assetObj.get("browser_download_url").getAsString());
+			}
+		}
+
+		throw new IOException("Asset not found for version: " + version);
+	}
+
+	public static String generateModFilename(Updatable u, String version) {
+		if (!Platform.isFabric() && !Platform.isForge()) {
+			throw new IllegalStateException("Unsupported platform");
+		}
+
+		String cleanVersion = version.startsWith("v") ? version.substring(1) : version;
+		String platformName = Platform.isFabric() ? "fabric" : "forge";
+
+		return String.format("%s-%s-%s.jar", u.modid, platformName, cleanVersion);
+	}
+
+	public static String getCurrentModFilename(Updatable u) {
+		return generateModFilename(u, Platform.getMod(u.modid).getVersion());
+	}
+
+	public static boolean shouldUpdate(Updatable u) throws IOException {
+		if (Platform.isDevelopmentEnvironment()) return false;
+		return getCurrentModVersion(u) < getLatestGithubVersion(u);
+	}
+
+	public static boolean isCompatible(Path jarFile) {
 		try (JarFile jar = new JarFile(jarFile.toString())) {
 			Manifest manifest = jar.getManifest();
-			if (manifest != null) {
-				List<String> versions = new ArrayList<>();
-				Attributes attrs = manifest.getMainAttributes();
-				attrs.forEach((key, value) -> {
-					if (key.toString().contains("Minecraft-Version")) {
-						versions.add(value.toString());
-					}
-				});
 
-				return versions.contains(mcVersion);
+			if (manifest == null) {
+				return false;
 			}
-		} catch(IOException ignored) {}
 
-		return false;
+			List<String> supportedVersions = new ArrayList<>();
+			Attributes attrs = manifest.getMainAttributes();
+
+			attrs.forEach((key, value) -> {
+				if (key.toString().contains("Minecraft-Version")) {
+					supportedVersions.add(value.toString());
+				}
+			});
+
+			return supportedVersions.contains(Platform.getMinecraftVersion());
+		} catch (IOException e) {
+			CroakLibMod.LOGGER.warn("Failed to read JAR manifest: {}", e.getMessage());
+
+			return false;
+		}
+	}
+
+	private static volatile boolean updating = false;
+	public static synchronized void update() {
+		if (updating) return;
+		updating = true;
+
+		try {
+			UpdateScreen updateScreen = new UpdateScreen();
+			Minecraft.getInstance().setScreen(updateScreen);
+
+			boolean anything = false;
+			int currentUpdatable = 0;
+			for (Updatable u : updatables) {
+				currentUpdatable++;
+				if (!shouldUpdate(u)) continue;
+				Path tempFile = Files.createTempFile("mod.update.", ".jar");
+
+				try {
+					URI updateAsset = getLatestGithubAsset(u);
+					URLConnection connection = updateAsset.toURL().openConnection();
+					connection.connect();
+
+					long fileSize = connection.getContentLength();
+					try (InputStream inputStream = new BufferedInputStream(connection.getInputStream());
+							 OutputStream outputStream = new BufferedOutputStream(Files.newOutputStream(tempFile))) {
+						byte[] buffer = new byte[BUFFER_SIZE];
+						long totalBytesRead = 0;
+						int bytesRead;
+
+						while ((bytesRead = inputStream.read(buffer)) != -1) {
+							outputStream.write(buffer, 0, bytesRead);
+							totalBytesRead += bytesRead;
+
+							if (fileSize > 0) {
+								double progress = (double) totalBytesRead / fileSize;
+								updateScreen.setProgress((float) Math.min(progress * 0.9 / updatables.size() * currentUpdatable, 0.9));
+							}
+						}
+					}
+
+					if (isCompatible(tempFile)) {
+						JsonObject release = getLatestGithubRelease(u);
+						String version = release.get("tag_name").getAsString();
+
+						Path modsDir = Platform.getGameFolder().resolve("mods");
+						Path currentModPath = modsDir.resolve(getCurrentModFilename(u));
+						Path newModPath = modsDir.resolve(generateModFilename(u, version));
+
+						Files.deleteIfExists(currentModPath);
+						Files.copy(tempFile, newModPath);
+						anything = true;
+					}
+				} finally {
+					Files.deleteIfExists(tempFile);
+				}
+			}
+
+			updateScreen.setProgress(1.0F);
+			if (!anything) throw new Exception();
+		} catch (Exception e) {
+			Minecraft.getInstance().setScreen(new TitleScreen());
+		}
 	}
 }

@@ -1,12 +1,10 @@
 package com.croaklib.client;
 
 import com.croaklib.CroakLibMod;
-import net.minecraft.client.model.geom.ModelLayerLocation;
-import net.minecraft.resources.ResourceLocation;
+import com.croaklib.ModUpdater;
 
 public class CroakLibModClient {
 	public static void init() {
-		// init stuff here
-
+		ModUpdater.addMod("meeplabsdev", "croaklib", CroakLibMod.MOD_ID);
 	}
 }
