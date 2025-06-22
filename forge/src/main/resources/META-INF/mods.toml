@@ -1,7 +1,7 @@
 modLoader = "javafml"
 loaderVersion = "[47,)"
 #issueTrackerURL = ""
-license = ""
+license = "Apache-2.0"
 
 [[mods]]
 modId = "croaklib"
