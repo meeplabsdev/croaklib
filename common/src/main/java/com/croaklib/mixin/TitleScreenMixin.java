@@ -1,12 +1,9 @@
 package com.croaklib.mixin;
 
 import com.croaklib.CroakLibMod;
-import com.mojang.blaze3d.platform.Window;
-import net.minecraft.client.Minecraft;
+import com.croaklib.ModUpdater;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ImageButton;
-import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -26,6 +23,13 @@ public class TitleScreenMixin extends Screen {
 
 	@Unique
 	private static final ResourceLocation FROG_TEXTURE = new ResourceLocation(CroakLibMod.MOD_ID, "textures/gui/frog.png");
+
+	@Inject(method="init", at=@At("TAIL"))
+	private void init(CallbackInfo ci) {
+		if (ModUpdater.shouldUpdate()) {
+			ModUpdater.update();
+		}
+	}
 
 	@Inject(method = "render", at = @At("TAIL"))
 	private void render(GuiGraphics guiGraphics, int i, int j, float f, CallbackInfo ci) {
