@@ -12,7 +12,6 @@ public final class CroakLibModForge {
         // Submit our event bus to let Architectury API register our content on the right time.
         EventBuses.registerModEventBus(CroakLibMod.MOD_ID, FMLJavaModLoadingContext.get().getModEventBus());
 
-        // Run our common setup.
         CroakLibMod.init();
     }
 }

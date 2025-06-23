@@ -1,6 +1,7 @@
 package com.croaklib.forge.client;
 
 import com.croaklib.CroakLibMod;
+import com.croaklib.client.CroakLibModClient;
 import com.croaklib.client.layer.FrogLayer;
 import com.croaklib.client.layer.HatLayer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
@@ -9,6 +10,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod.EventBusSubscriber(modid = CroakLibMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class CroakLibModForgeClient {
@@ -26,5 +28,11 @@ public class CroakLibModForgeClient {
 			playerRendererSlim.addLayer(new FrogLayer(playerRendererSlim));
 			playerRendererSlim.addLayer(new HatLayer(playerRendererSlim));
 		}
+	}
+
+	@SubscribeEvent
+	public static void onClientSetup(FMLClientSetupEvent event) {
+		// Run our common client setup.
+		CroakLibModClient.init();
 	}
 }

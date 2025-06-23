@@ -41,7 +41,7 @@ public class ModUpdater {
 			this.user = user;
 			this.repo = repo;
 
-			String url = GITHUB_API_BASE + user + "/" + repo + "/branches/" + branch;
+			String url = GITHUB_API_BASE + user + "/" + repo + "/branches/" + this.branch;
 			HttpRequest request = HttpRequest.newBuilder()
 				.uri(URI.create(url))
 				.header("Accept", GITHUB_ACCEPT_HEADER)
@@ -51,7 +51,7 @@ public class ModUpdater {
 
 			try {
 				HttpResponse<String> response = CroakLibMod.HTTP.send(request, HttpResponse.BodyHandlers.ofString());
-				if (response.statusCode() != 200) this.branch = "main";
+				if (response.statusCode() == 404) this.branch = "main";
 			} catch (IOException | InterruptedException e) {
 				this.branch = "main";
 			}
@@ -59,7 +59,8 @@ public class ModUpdater {
 	}
 
 	public static void addMod(String user, String repo, String modid) {
-		updatables.add(new Updatable(repo, user, modid));
+		CroakLibMod.LOGGER.info("Registered {}/{} ({}) to update.", user, repo, modid);
+		updatables.add(new Updatable(user, repo, modid));
 	}
 
 	public static int v(String version) {
@@ -105,7 +106,6 @@ public class ModUpdater {
 			}
 
 			JsonArray releases = CroakLibMod.GSON.fromJson(response.body(), JsonArray.class);
-
 			for (JsonElement release : releases) {
 				JsonObject data = release.getAsJsonObject();
 				if (data.has("target_commitish") &&
@@ -204,6 +204,11 @@ public class ModUpdater {
 			boolean anything = false;
 			int currentUpdatable = 0;
 			for (Updatable u : updatables) {
+				// TODO: Remove any other mods from the folder that are of the same modid but a lower version than the one
+				//  currently running. This allows the user to restart later or at the current point. Not doing this is also
+				//  valid, and the mods will work just fine, with the higher version being selected (at least on fabric), but
+				//  the mods list will quickly become extremely cluttered.
+
 				currentUpdatable++;
 				if (!shouldUpdate(u)) continue;
 				Path tempFile = Files.createTempFile("mod.update.", ".jar");
@@ -236,10 +241,8 @@ public class ModUpdater {
 						String version = release.get("tag_name").getAsString();
 
 						Path modsDir = Platform.getGameFolder().resolve("mods");
-						Path currentModPath = modsDir.resolve(getCurrentModFilename(u));
 						Path newModPath = modsDir.resolve(generateModFilename(u, version));
 
-						Files.deleteIfExists(currentModPath);
 						Files.copy(tempFile, newModPath);
 						anything = true;
 					}
@@ -251,6 +254,7 @@ public class ModUpdater {
 			updateScreen.setProgress(1.0F);
 			if (!anything) throw new Exception();
 		} catch (Exception e) {
+			CroakLibMod.LOGGER.error(e);
 			Minecraft.getInstance().setScreen(new TitleScreen());
 		}
 	}
