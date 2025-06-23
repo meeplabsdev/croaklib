@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
+import java.util.regex.Pattern;
 
 public class ModUpdater {
 	private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
@@ -200,14 +201,31 @@ public class ModUpdater {
 		try {
 			UpdateScreen updateScreen = new UpdateScreen();
 			Minecraft.getInstance().setScreen(updateScreen);
+			Path modsDir = Platform.getGameFolder().resolve("mods");
 
 			boolean anything = false;
 			int currentUpdatable = 0;
 			for (Updatable u : updatables) {
-				// TODO: Remove any other mods from the folder that are of the same modid but a lower version than the one
-				//  currently running. This allows the user to restart later or at the current point. Not doing this is also
-				//  valid, and the mods will work just fine, with the higher version being selected (at least on fabric), but
-				//  the mods list will quickly become extremely cluttered.
+				// Remove any other mods from the folder that are of the same modid but a lower version than the one
+				// currently running. This allows the user to restart later or at the current point. Not doing this is also
+				// valid, and the mods will work just fine, with the higher version being selected (at least on fabric), but
+				// the mod list will quickly become extremely cluttered.
+
+				Pattern filePattern = Pattern.compile(u.modid + "-" + (Platform.isFabric() ? "fabric" : "forge") + "-\\d+\\.\\d+\\.\\d+\\.jar");
+				try (var paths = Files.list(modsDir)) {
+					List<Path> mods = paths
+						.filter(Files::isRegularFile)
+						.filter(path -> filePattern.matcher(path.getFileName().toString()).matches())
+						.toList();
+
+					for (Path mod : mods) {
+						try {
+							if (!mod.getFileName().endsWith(Platform.getMod(u.modid).getVersion() + ".jar")) {
+								Files.deleteIfExists(mod);
+							}
+						} catch (IOException ignored) {}
+					}
+				}
 
 				currentUpdatable++;
 				if (!shouldUpdate(u)) continue;
@@ -239,8 +257,6 @@ public class ModUpdater {
 					if (isCompatible(tempFile)) {
 						JsonObject release = getLatestGithubRelease(u);
 						String version = release.get("tag_name").getAsString();
-
-						Path modsDir = Platform.getGameFolder().resolve("mods");
 						Path newModPath = modsDir.resolve(generateModFilename(u, version));
 
 						Files.copy(tempFile, newModPath);
