@@ -51,8 +51,9 @@ public class ModUpdater {
 
 			int currentUpdatable = 0;
 			for (Updatable u : updatables) {
-				currentUpdatable++;
 				if (!shouldUpdate(u)) continue;
+				currentUpdatable++;
+
 				Path tempFile = Files.createTempFile("mod.update.", ".jar");
 				CroakLibMod.LOGGER.info("updating: {}", u.modid);
 
@@ -111,7 +112,11 @@ public class ModUpdater {
 				}
 			}
 
-			updateScreen.setProgress(1.0F);
+			if (currentUpdatable > 0) {
+				updateScreen.setProgress(1.0F);
+			} else {
+				Minecraft.getInstance().setScreen(new TitleScreen());
+			}
 		} catch (Exception e) {
 			Minecraft.getInstance().setScreen(new TitleScreen());
 			if (Platform.isDevelopmentEnvironment()) CroakLibMod.LOGGER.error(e.getStackTrace());
