@@ -24,8 +24,8 @@ public class TitleScreenMixin extends Screen {
 	@Unique
 	private static final ResourceLocation FROG_TEXTURE = new ResourceLocation(CroakLibMod.MOD_ID, "textures/gui/frog.png");
 
-	@Inject(method="init", at=@At("TAIL"))
-	private void init(CallbackInfo ci) {
+	@Inject(method = "added", at = @At("RETURN"))
+	private void added(CallbackInfo ci) {
 		ModUpdater.update();
 	}
 

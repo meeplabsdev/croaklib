@@ -8,7 +8,7 @@ import net.minecraft.network.chat.Component;
 
 public class UpdateFinishedScreen extends Screen {
 	private static final Component TITLE = Component.literal("Update finished");
-	private static final Component SUBTITLE = Component.literal("Mods will be updated next time you start the game");
+	private static final Component SUBTITLE = Component.literal("Mods will be reloaded next time you start the game");
 
 	public UpdateFinishedScreen() {
 		super(TITLE);
