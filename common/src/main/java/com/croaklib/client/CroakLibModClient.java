@@ -5,6 +5,6 @@ import com.croaklib.ModUpdater;
 
 public class CroakLibModClient {
 	public static void init() {
-		ModUpdater.addMod("meeplabsdev", "croaklib", CroakLibMod.MOD_ID);
+		ModUpdater.addMod(CroakLibMod.MOD_ID);
 	}
 }
