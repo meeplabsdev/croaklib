@@ -11,7 +11,7 @@ authors = "CroakAndRoll"
 description = '''
 Library mod for my common code.
 '''
-#logoFile = ""
+logoFile = "icon.png"
 
 [[dependencies.croaklib]]
 modId = "forge"
