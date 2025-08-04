@@ -51,31 +51,7 @@ public class ModUpdater {
 
 			int currentUpdatable = 0;
 			for (Updatable u : updatables) {
-				if (!shouldUpdate(u)) continue;
-				currentUpdatable++;
-
 				Path tempFile = Files.createTempFile("mod.update.", ".jar");
-				CroakLibMod.LOGGER.info("updating: {}", u.modid);
-
-				// Remove any other mods from the folder that are of the same modid but a lower version than the one
-				// currently running. This allows the user to restart later or at the current point. Not doing this is also
-				// valid, and the mods will work just fine, with the higher version being selected (at least on fabric), but
-				// the mod list will quickly become extremely cluttered.
-
-				Pattern filePattern = Pattern.compile(u.modid + "-" + (Platform.isFabric() ? "fabric" : "forge") + "-.*\\.jar");
-				try (var paths = Files.list(modsDir)) {
-					List<Path> mods = paths.filter(Files::isRegularFile).filter(path -> filePattern.matcher(path.getFileName()
-						.toString()).matches()).toList();
-
-					for (Path mod : mods) {
-						try {
-							if (!mod.getFileName().endsWith(Platform.getMod(u.modid).getVersion() + ".jar")) {
-								Files.deleteIfExists(mod);
-							}
-						} catch (IOException ignored) {
-						}
-					}
-				}
 
 				try {
 					URI updateAsset = getLatestAsset(u);
@@ -100,7 +76,26 @@ public class ModUpdater {
 						}
 					}
 
+					if (!shouldUpdate(u)) continue;
+					currentUpdatable++;
+
 					if (isCompatible(tempFile)) {
+						// Remove any other mods from the folder that are of the same modid and format. Not doing
+						// this is also valid, and the mods will work just fine, with the higher version being
+						// selected (at least on fabric), but the mod list will quickly become extremely cluttered.
+
+						Pattern filePattern = Pattern.compile(u.modid + "-" + (Platform.isFabric() ? "fabric" : "forge") + "-.*\\.jar");
+						try (var paths = Files.list(modsDir)) {
+							List<Path> mods = paths.filter(Files::isRegularFile).filter(path -> filePattern.matcher(path.getFileName()
+								.toString()).matches()).toList();
+
+							for (Path mod : mods) {
+								try {
+									Files.deleteIfExists(mod);
+								} catch (IOException ignored) { }
+							}
+						}
+
 						JsonObject release = getLatestRelease(u);
 						String version = release.get("version_number").getAsString();
 						Path newModPath = modsDir.resolve(generateModFilename(u, version));
